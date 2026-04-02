@@ -211,19 +211,24 @@ function LabelInp({ value, onChange, labels, placeholder }) {
 // ═══════════════════════════
 // MAIN APP
 // ═══════════════════════════
-export default function ZmrzkoApp() {
+export default function ZmrzkoApp({ user, household, members, signOut }) {
+  const householdId = household?.id;
+  
   // ─── MODE: freezer vs shopping ───
   const [mode, setMode] = useState("freezer");
 
-  // ─── SUPABASE HOOKS ───
-  const { items, loading: itemsLoading, addItem: dbAddItem, updateItem: dbUpdateItem, deleteItem: dbDeleteItem } = useItems();
-  const { archived, loading: archLoading, archiveItem: dbArchiveItem } = useArchived();
-  const { freezers, addFreezer: dbAddFreezer } = useFreezers();
-  const { categories, addCategory: dbAddCategory } = useCategories();
-  const { items: shopItems, loading: shopLoading, addItem: dbShopAdd, updateItem: dbShopUpdate, deleteItem: dbShopDelete } = useShoppingItems();
-  const { archived: shopArchive, archiveChecked: dbShopArchiveChecked } = useShoppingArchived();
-  const { favourites: shopFavourites, toggleFavourite: dbShopToggleFav } = useShoppingFavourites();
-  const { stores: shopStores, addStore: dbAddStore } = useShoppingStores();
+  // ─── SUPABASE HOOKS (household-scoped) ───
+  const { items, loading: itemsLoading, addItem: dbAddItem, updateItem: dbUpdateItem, deleteItem: dbDeleteItem } = useItems(householdId);
+  const { archived, loading: archLoading, archiveItem: dbArchiveItem } = useArchived(householdId);
+  const { freezers, addFreezer: dbAddFreezer } = useFreezers(householdId);
+  const { categories, loading: catsLoading, addCategory: dbAddCategory } = useCategories(householdId);
+  const { items: shopItems, loading: shopLoading, addItem: dbShopAdd, updateItem: dbShopUpdate, deleteItem: dbShopDelete } = useShoppingItems(householdId);
+  const { archived: shopArchive, archiveChecked: dbShopArchiveChecked } = useShoppingArchived(householdId);
+  const { favourites: shopFavourites, toggleFavourite: dbShopToggleFav } = useShoppingFavourites(householdId);
+  const { stores: shopStores, addStore: dbAddStore } = useShoppingStores(householdId);
+
+  // ─── SETTINGS ───
+  const [showSettings, setShowSettings] = useState(false);
 
   // ─── FREEZER UI STATE ───
   const [screen, setScreen] = useState("home");
@@ -400,6 +405,53 @@ export default function ZmrzkoApp() {
     );
   }
 
+  function SettingsBtn() {
+    return <button onClick={() => setShowSettings(true)} style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(71,85,105,0.2)", borderRadius: 10, padding: "8px 10px", color: "#64748B", fontSize: 14, cursor: "pointer", fontWeight: 600, lineHeight: 1 }}>⚙️</button>;
+  }
+
+  function SettingsModal() {
+    if (!showSettings) return null;
+    return (
+      <Modal onClose={() => setShowSettings(false)}>
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <div style={{ fontSize: 48, marginBottom: 8 }}>🏠</div>
+          <h2 style={{ fontSize: 20, fontWeight: 800, margin: "0 0 4px" }}>{household.name}</h2>
+          <p style={{ color: "#64748B", fontSize: 13, margin: 0 }}>Prijavljen kot {user.user_metadata?.full_name || user.email}</p>
+        </div>
+
+        {/* Join code */}
+        <div style={{ padding: "16px", background: "rgba(56,189,248,0.06)", border: "1px solid rgba(56,189,248,0.2)", borderRadius: 14, marginBottom: 16, textAlign: "center" }}>
+          <div style={{ fontSize: 11, color: "#38BDF8", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, marginBottom: 6 }}>Koda za pridružitev</div>
+          <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: 8, color: "#E2E8F0" }}>{household.join_code}</div>
+          <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>Deli to kodo z družino ali partnerjem</div>
+        </div>
+
+        {/* Members */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#94A3B8", marginBottom: 8 }}>Člani ({members.length})</div>
+          {members.map(m => (
+            <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "rgba(30,41,59,0.4)", borderRadius: 12, marginBottom: 4, border: "1px solid rgba(71,85,105,0.15)" }}>
+              <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg,#0EA5E9,#6366F1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "#fff" }}>
+                {(m.display_name || "?")[0].toUpperCase()}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#E2E8F0" }}>{m.display_name || "Uporabnik"}</div>
+                <div style={{ fontSize: 11, color: "#475569" }}>{m.role === "owner" ? "Lastnik" : "Član"}</div>
+              </div>
+              {m.user_id === user.id && <span style={{ fontSize: 11, color: "#38BDF8", fontWeight: 600 }}>Ti</span>}
+            </div>
+          ))}
+        </div>
+
+        <button onClick={signOut} style={{
+          width: "100%", padding: "14px", borderRadius: 14, border: "1px solid rgba(239,68,68,0.2)",
+          background: "rgba(239,68,68,0.05)", color: "#EF4444", fontSize: 15, fontWeight: 700,
+          cursor: "pointer",
+        }}>Odjava</button>
+      </Modal>
+    );
+  }
+
   // ═══════════════════════════
   // SHOPPING LIST
   // ═══════════════════════════
@@ -464,7 +516,10 @@ export default function ZmrzkoApp() {
           {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingTop: 12, marginBottom: 14 }}>
             <LogoToggle />
-            <button onClick={() => setShowShopArchive(true)} style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(71,85,105,0.2)", borderRadius: 10, padding: "8px 10px", color: "#64748B", fontSize: 14, cursor: "pointer", fontWeight: 600, lineHeight: 1 }}>🧾</button>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button onClick={() => setShowShopArchive(true)} style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(71,85,105,0.2)", borderRadius: 10, padding: "8px 10px", color: "#64748B", fontSize: 14, cursor: "pointer", fontWeight: 600, lineHeight: 1 }}>🧾</button>
+              <SettingsBtn />
+            </div>
           </div>
 
           {/* Store tabs */}
@@ -622,6 +677,7 @@ export default function ZmrzkoApp() {
             <Btn onClick={addNewStore} disabled={!newStore.name}>Dodaj trgovino</Btn>
           </Modal>
         )}
+        <SettingsModal />
       </div>
     );
   }
@@ -790,6 +846,7 @@ export default function ZmrzkoApp() {
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <FreezerDD freezers={freezers} selected={selFrzs} onChange={setSelFrzs} />
               <button onClick={() => { setShowArchive(true); setArchSearch(""); setArchCatF(null); }} style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(71,85,105,0.2)", borderRadius: 10, padding: "8px 10px", color: "#64748B", fontSize: 14, cursor: "pointer", fontWeight: 600, lineHeight: 1 }}>📦</button>
+              <SettingsBtn />
             </div>
           </div>
 
@@ -920,6 +977,7 @@ export default function ZmrzkoApp() {
             </Modal>
           );
         })()}
+        <SettingsModal />
       </div>
     );
   }

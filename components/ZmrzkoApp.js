@@ -328,11 +328,44 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
 
   // ─── SHOPPING LOGIC ───
   const shopVisible = activeStore === "all" ? shopItems : shopItems.filter(i => i.store === activeStore);
+
+  // ─── PAMETNA KATEGORIZACIJA ───
+  const detectCategory = (name) => {
+    const n = name.toLowerCase();
+    if (/zamrz|led|sladoled|ice/.test(n)) return { key: "zamrznjeno", label: "🧊 Zamrznjeno", order: 1 };
+    if (/mleko|jogurt|sir|smetana|skuta|maslo|jajc/.test(n)) return { key: "mlecni", label: "🥛 Mlečni izdelki", order: 2 };
+    if (/piščan|govej|svinjsk|mlet|šunka|salama|riba|losos|puran|meso/.test(n)) return { key: "meso", label: "🥩 Meso & ribe", order: 3 };
+    if (/jabolko|hruška|banana|jagod|pomaranč|limona|grozdje|sadje|avokado|borovnic/.test(n)) return { key: "sadje", label: "🍎 Sadje", order: 4 };
+    if (/zelenjav|solata|paradižnik|kumara|paprika|čebula|česen|krompir|brokoli|korenje|grah|špinač/.test(n)) return { key: "zelenjava", label: "🥬 Zelenjava", order: 5 };
+    if (/kruh|žemlja|burek|pica|torta|kolač|pecivo|rogljič/.test(n)) return { key: "pekarna", label: "🍞 Pekarna", order: 6 };
+    if (/riž|testenin|moka|sladkor|sol|olje|kis|začimb|poper|kava|čaj|konzerv/.test(n)) return { key: "suho", label: "🥫 Suho blago", order: 7 };
+    if (/pivo|vino|sok|voda|pijač/.test(n)) return { key: "pijace", label: "🥤 Pijače", order: 8 };
+    if (/pes|mačk|pasja|mačja|hrana za/.test(n)) return { key: "zivali", label: "🐾 Za živali", order: 9 };
+    if (/pralni|detergent|gobic|toaletni|wc|šampon|gel|milo|zobna|krema|dezodor/.test(n)) return { key: "cistila", label: "🧴 Čistila & nega", order: 10 };
+    return { key: "drugo", label: "🛒 Ostalo", order: 99 };
+  };
+
   const sortedShop = useMemo(() => {
     const unchecked = shopVisible.filter(i => !i.checked);
     const checked = shopVisible.filter(i => i.checked);
-    return [...unchecked, ...checked];
+    // Uredi po sort_order če obstaja, sicer po created_at
+    const sortFn = (a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999);
+    return [...unchecked.sort(sortFn), ...checked];
   }, [shopVisible]);
+
+  // Grupiraj po kategorijah za single-store view
+  const shopByCategory = useMemo(() => {
+    if (activeStore === "all") return null;
+    const unchecked = sortedShop.filter(i => !i.checked);
+    const checked = sortedShop.filter(i => i.checked);
+    const groups = {};
+    unchecked.forEach(item => {
+      const cat = detectCategory(item.name);
+      if (!groups[cat.key]) groups[cat.key] = { label: cat.label, order: cat.order, items: [] };
+      groups[cat.key].items.push(item);
+    });
+    return { groups: Object.values(groups).sort((a, b) => a.order - b.order), checked };
+  }, [sortedShop, activeStore]);
 
   // Group by store for "all" view
   const shopByStore = useMemo(() => {
@@ -536,19 +569,110 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
     }
 
     // Render a single shop item row
-    const ShopItemRow = ({ item }) => {
+    const [editingId, setEditingId] = useState(null);
+    const [editingName, setEditingName] = useState("");
+    const dragItem = useRef(null);
+    const dragOver = useRef(null);
+
+    const handleDragStart = (e, item) => {
+      dragItem.current = item;
+      e.dataTransfer.effectAllowed = "move";
+    };
+    const handleDragOver = (e, item) => {
+      e.preventDefault();
+      dragOver.current = item;
+    };
+    const handleDrop = async () => {
+      if (!dragItem.current || !dragOver.current) return;
+      if (dragItem.current.id === dragOver.current.id) return;
+      // Zamenjaj sort_order
+      const fromOrder = dragItem.current.sort_order ?? 0;
+      const toOrder = dragOver.current.sort_order ?? 0;
+      await dbShopUpdate(dragItem.current.id, { sort_order: toOrder });
+      await dbShopUpdate(dragOver.current.id, { sort_order: fromOrder });
+      dragItem.current = null;
+      dragOver.current = null;
+    };
+
+    // Touch drag & drop za mobilne
+    const touchDrag = useRef({ item: null, startY: 0, clone: null });
+    const handleTouchStart = (e, item) => {
+      touchDrag.current.item = item;
+      touchDrag.current.startY = e.touches[0].clientY;
+    };
+    const handleTouchEnd = async (e, allItems) => {
+      const endY = e.changedTouches[0].clientY;
+      const diffY = endY - touchDrag.current.startY;
+      if (Math.abs(diffY) < 20) { touchDrag.current.item = null; return; }
+      const from = touchDrag.current.item;
+      if (!from) return;
+      const sorted = [...allItems].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      const idx = sorted.findIndex(i => i.id === from.id);
+      const newIdx = diffY < 0 ? Math.max(0, idx - 1) : Math.min(sorted.length - 1, idx + 1);
+      if (newIdx === idx) { touchDrag.current.item = null; return; }
+      const neighbor = sorted[newIdx];
+      await dbShopUpdate(from.id, { sort_order: neighbor.sort_order ?? newIdx });
+      await dbShopUpdate(neighbor.id, { sort_order: from.sort_order ?? idx });
+      touchDrag.current.item = null;
+    };
+
+    const ShopItemRow = ({ item, allItems }) => {
       const st = shopStores.find(s => s.id === item.store);
+      const isEditing = editingId === item.id;
       return (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: item.checked ? "rgba(30,41,59,0.2)" : "rgba(30,41,59,0.5)", border: "1px solid " + (item.checked ? "rgba(71,85,105,0.08)" : "rgba(71,85,105,0.2)"), borderRadius: 14, opacity: item.checked ? 0.5 : 1, transition: "all 0.2s" }}>
+        <div
+          draggable={!item.checked}
+          onDragStart={e => handleDragStart(e, item)}
+          onDragOver={e => handleDragOver(e, item)}
+          onDrop={handleDrop}
+          onTouchStart={e => handleTouchStart(e, item)}
+          onTouchEnd={e => handleTouchEnd(e, allItems || sortedShop)}
+          style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: item.checked ? "rgba(30,41,59,0.2)" : "rgba(30,41,59,0.5)", border: "1px solid " + (item.checked ? "rgba(71,85,105,0.08)" : "rgba(71,85,105,0.2)"), borderRadius: 14, opacity: item.checked ? 0.5 : 1, transition: "all 0.2s", touchAction: "pan-y" }}
+        >
+          {/* Drag handle */}
+          {!item.checked && <span style={{ fontSize: 14, color: "#334155", cursor: "grab", flexShrink: 0, userSelect: "none" }}>⠿</span>}
+
+          {/* Checkbox */}
           <button onClick={(e) => { e.stopPropagation(); shopToggle(item.id); }} style={{ width: 28, height: 28, borderRadius: 8, border: "2px solid " + (item.checked ? "#22C55E" : "rgba(71,85,105,0.4)"), background: item.checked ? "#22C55E" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, fontSize: 14, color: "#fff", transition: "all 0.15s" }}>
             {item.checked && "✓"}
           </button>
-          <div onClick={() => setShopDetail(item)} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
-            <span style={{ fontSize: 16, fontWeight: 600, color: item.checked ? "#475569" : "#E2E8F0", textDecoration: item.checked ? "line-through" : "none" }}>{item.name}</span>
-            {item.qty && <span style={{ fontSize: 13, color: item.checked ? "#374151" : "#64748B", marginLeft: 8 }}>{item.qty}</span>}
+
+          {/* Ime - inline edit */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {isEditing ? (
+              <input
+                autoFocus
+                value={editingName}
+                onChange={e => setEditingName(e.target.value)}
+                onBlur={async () => {
+                  if (editingName.trim() && editingName !== item.name) {
+                    await dbShopUpdate(item.id, { name: editingName.trim() });
+                  }
+                  setEditingId(null);
+                }}
+                onKeyDown={async e => {
+                  if (e.key === "Enter") {
+                    if (editingName.trim() && editingName !== item.name) {
+                      await dbShopUpdate(item.id, { name: editingName.trim() });
+                    }
+                    setEditingId(null);
+                  }
+                  if (e.key === "Escape") setEditingId(null);
+                }}
+                style={{ background: "transparent", border: "none", borderBottom: "1px solid #F59E0B", color: "#E2E8F0", fontSize: 16, fontWeight: 600, width: "100%", outline: "none", padding: "2px 0" }}
+              />
+            ) : (
+              <span
+                onClick={() => { if (!item.checked) { setEditingId(item.id); setEditingName(item.name); } else { setShopDetail(item); } }}
+                style={{ fontSize: 16, fontWeight: 600, color: item.checked ? "#475569" : "#E2E8F0", textDecoration: item.checked ? "line-through" : "none", cursor: "pointer" }}
+              >{item.name}</span>
+            )}
+            {item.qty && !isEditing && <span style={{ fontSize: 13, color: item.checked ? "#374151" : "#64748B", marginLeft: 8 }}>{item.qty}</span>}
           </div>
-          {/* Show store icon when in "all" view */}
+
+          {/* Store icon + detail */}
           {activeStore === "all" && st && <span style={{ fontSize: 12, flexShrink: 0 }}>{st.icon}</span>}
+          <button onClick={() => setShopDetail(item)} style={{ background: "none", border: "none", color: "#334155", fontSize: 16, cursor: "pointer", padding: "4px", flexShrink: 0 }}>···</button>
         </div>
       );
     };
@@ -620,26 +744,44 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
             )}
           </div>
 
-          {/* Items - grouped by store when "all", flat when single store */}
+          {/* Items - grouped by store when "all", by category when single store */}
           {activeStore === "all" && shopByStore ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {Object.entries(shopByStore).map(([storeId, { store, items: storeItems }]) => (
                 <div key={storeId}>
-                  {/* Store header */}
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, paddingLeft: 4 }}>
                     <span style={{ fontSize: 16 }}>{store.icon}</span>
                     <span style={{ fontSize: 15, fontWeight: 800, color: "#CBD5E1", textTransform: "uppercase", letterSpacing: 1 }}>{store.name}</span>
                     <span style={{ fontSize: 12, color: "#475569" }}>({storeItems.filter(i => !i.checked).length})</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {storeItems.map(item => <ShopItemRow key={item.id} item={item} />)}
+                    {storeItems.map(item => <ShopItemRow key={item.id} item={item} allItems={storeItems} />)}
                   </div>
                 </div>
               ))}
             </div>
+          ) : shopByCategory ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {shopByCategory.groups.map(group => (
+                <div key={group.label}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#64748B", marginBottom: 6, paddingLeft: 2 }}>{group.label}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {group.items.map(item => <ShopItemRow key={item.id} item={item} allItems={sortedShop} />)}
+                  </div>
+                </div>
+              ))}
+              {shopByCategory.checked.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 6, paddingLeft: 2 }}>✓ Kupljeno</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {shopByCategory.checked.map(item => <ShopItemRow key={item.id} item={item} allItems={sortedShop} />)}
+                  </div>
+                </div>
+              )}
+            </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {sortedShop.map(item => <ShopItemRow key={item.id} item={item} />)}
+              {sortedShop.map(item => <ShopItemRow key={item.id} item={item} allItems={sortedShop} />)}
             </div>
           )}
 

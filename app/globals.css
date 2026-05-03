@@ -15,6 +15,13 @@ html, body {
   font-family: 'Outfit', 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
+  /* PrepreÄi resize ko se tipkovnica odpre */
+  height: 100%;
+}
+
+#__next {
+  height: 100%;
+  min-height: -webkit-fill-available;
 }
 
 /* PWA safe areas */

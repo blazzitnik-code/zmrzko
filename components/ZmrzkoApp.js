@@ -614,63 +614,18 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
       touchDrag.current.item = null;
     };
 
-    const ShopItemRow = ({ item, allItems }) => {
+    const ShopItemRow = ({ item }) => {
       const st = shopStores.find(s => s.id === item.store);
-      const isEditing = editingId === item.id;
       return (
-        <div
-          draggable={!item.checked}
-          onDragStart={e => handleDragStart(e, item)}
-          onDragOver={e => handleDragOver(e, item)}
-          onDrop={handleDrop}
-          onTouchStart={e => handleTouchStart(e, item)}
-          onTouchEnd={e => handleTouchEnd(e, allItems || sortedShop)}
-          style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: item.checked ? "rgba(30,41,59,0.2)" : "rgba(30,41,59,0.5)", border: "1px solid " + (item.checked ? "rgba(71,85,105,0.08)" : "rgba(71,85,105,0.2)"), borderRadius: 14, opacity: item.checked ? 0.5 : 1, transition: "all 0.2s", touchAction: "pan-y" }}
-        >
-          {/* Drag handle */}
-          {!item.checked && <span style={{ fontSize: 14, color: "#334155", cursor: "grab", flexShrink: 0, userSelect: "none" }}>⠿</span>}
-
-          {/* Checkbox */}
+        <div onClick={() => setShopDetail(item)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: item.checked ? "rgba(30,41,59,0.2)" : "rgba(30,41,59,0.5)", border: "1px solid " + (item.checked ? "rgba(71,85,105,0.08)" : "rgba(71,85,105,0.2)"), borderRadius: 14, opacity: item.checked ? 0.5 : 1, transition: "all 0.2s", cursor: "pointer" }}>
           <button onClick={(e) => { e.stopPropagation(); shopToggle(item.id); }} style={{ width: 28, height: 28, borderRadius: 8, border: "2px solid " + (item.checked ? "#22C55E" : "rgba(71,85,105,0.4)"), background: item.checked ? "#22C55E" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, fontSize: 14, color: "#fff", transition: "all 0.15s" }}>
             {item.checked && "✓"}
           </button>
-
-          {/* Ime - inline edit */}
           <div style={{ flex: 1, minWidth: 0 }}>
-            {isEditing ? (
-              <input
-                autoFocus
-                value={editingName}
-                onChange={e => setEditingName(e.target.value)}
-                onBlur={async () => {
-                  if (editingName.trim() && editingName !== item.name) {
-                    await dbShopUpdate(item.id, { name: editingName.trim() });
-                  }
-                  setEditingId(null);
-                }}
-                onKeyDown={async e => {
-                  if (e.key === "Enter") {
-                    if (editingName.trim() && editingName !== item.name) {
-                      await dbShopUpdate(item.id, { name: editingName.trim() });
-                    }
-                    setEditingId(null);
-                  }
-                  if (e.key === "Escape") setEditingId(null);
-                }}
-                style={{ background: "transparent", border: "none", borderBottom: "1px solid #F59E0B", color: "#E2E8F0", fontSize: 16, fontWeight: 600, width: "100%", outline: "none", padding: "2px 0" }}
-              />
-            ) : (
-              <span
-                onClick={() => { if (!item.checked) { setEditingId(item.id); setEditingName(item.name); } else { setShopDetail(item); } }}
-                style={{ fontSize: 16, fontWeight: 600, color: item.checked ? "#475569" : "#E2E8F0", textDecoration: item.checked ? "line-through" : "none", cursor: "pointer" }}
-              >{item.name}</span>
-            )}
-            {item.qty && !isEditing && <span style={{ fontSize: 13, color: item.checked ? "#374151" : "#64748B", marginLeft: 8 }}>{item.qty}</span>}
+            <span style={{ fontSize: 16, fontWeight: 600, color: item.checked ? "#475569" : "#E2E8F0", textDecoration: item.checked ? "line-through" : "none" }}>{item.name}</span>
+            {item.qty && <span style={{ fontSize: 13, color: item.checked ? "#374151" : "#64748B", marginLeft: 8 }}>{item.qty}</span>}
           </div>
-
-          {/* Store icon + detail */}
           {activeStore === "all" && st && <span style={{ fontSize: 12, flexShrink: 0 }}>{st.icon}</span>}
-          <button onClick={() => setShopDetail(item)} style={{ background: "none", border: "none", color: "#334155", fontSize: 16, cursor: "pointer", padding: "4px", flexShrink: 0 }}>···</button>
         </div>
       );
     };
@@ -753,7 +708,7 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
                     <span style={{ fontSize: 12, color: "#475569" }}>({storeItems.filter(i => !i.checked).length})</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {storeItems.map(item => <ShopItemRow key={item.id} item={item} allItems={storeItems} />)}
+                    {storeItems.map(item => <ShopItemRow key={item.id} item={item} />)}
                   </div>
                 </div>
               ))}
@@ -764,7 +719,7 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
                 <div key={group.label}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#64748B", marginBottom: 6, paddingLeft: 2 }}>{group.label}</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {group.items.map(item => <ShopItemRow key={item.id} item={item} allItems={sortedShop} />)}
+                    {group.items.map(item => <ShopItemRow key={item.id} item={item} />)}
                   </div>
                 </div>
               ))}
@@ -772,14 +727,14 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 6, paddingLeft: 2 }}>✓ Kupljeno</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {shopByCategory.checked.map(item => <ShopItemRow key={item.id} item={item} allItems={sortedShop} />)}
+                    {shopByCategory.checked.map(item => <ShopItemRow key={item.id} item={item} />)}
                   </div>
                 </div>
               )}
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {sortedShop.map(item => <ShopItemRow key={item.id} item={item} allItems={sortedShop} />)}
+              {sortedShop.map(item => <ShopItemRow key={item.id} item={item} />)}
             </div>
           )}
 
@@ -788,10 +743,43 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
 
         {/* Shopping item detail modal */}
         {shopDetail && (
-          <Modal onClose={() => setShopDetail(null)}>
+          <Modal onClose={() => { setShopDetail(null); setEditingId(null); }}>
             <div style={{ textAlign: "center", marginBottom: 20 }}>
               <div style={{ fontSize: 48, marginBottom: 8 }}>🛒</div>
-              <h2 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px" }}>{shopDetail.name}</h2>
+              {/* Ime - klikabilno za urejanje */}
+              {editingId === shopDetail.id ? (
+                <input
+                  autoFocus
+                  value={editingName}
+                  onChange={e => setEditingName(e.target.value)}
+                  onBlur={async () => {
+                    if (editingName.trim() && editingName !== shopDetail.name) {
+                      await dbShopUpdate(shopDetail.id, { name: editingName.trim() });
+                      setShopDetail(d => ({ ...d, name: editingName.trim() }));
+                    }
+                    setEditingId(null);
+                  }}
+                  onKeyDown={async e => {
+                    if (e.key === "Enter") {
+                      if (editingName.trim() && editingName !== shopDetail.name) {
+                        await dbShopUpdate(shopDetail.id, { name: editingName.trim() });
+                        setShopDetail(d => ({ ...d, name: editingName.trim() }));
+                      }
+                      setEditingId(null);
+                    }
+                    if (e.key === "Escape") setEditingId(null);
+                  }}
+                  style={{ fontSize: 22, fontWeight: 800, color: "#E2E8F0", background: "transparent", border: "none", borderBottom: "2px solid #F59E0B", outline: "none", textAlign: "center", width: "100%", padding: "4px 0" }}
+                />
+              ) : (
+                <h2
+                  onClick={() => { setEditingId(shopDetail.id); setEditingName(shopDetail.name); }}
+                  style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", cursor: "pointer" }}
+                  title="Klikni za urejanje"
+                >
+                  {shopDetail.name} <span style={{ fontSize: 14, color: "#475569" }}>✎</span>
+                </h2>
+              )}
               {shopDetail.favourite && <span style={{ fontSize: 13, color: "#F59E0B", fontWeight: 600 }}>⭐ Priljubljen</span>}
             </div>
 

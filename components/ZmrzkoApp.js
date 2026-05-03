@@ -759,6 +759,19 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
                 await sb.from('archived').delete().eq('id', editArchived.id);
                 setEditArchived(null);
               }} style={{ width: "100%", padding: "13px", borderRadius: 14, border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.1)", color: "#EF4444", fontSize: 15, fontWeight: 600, cursor: "pointer" }}>🗑️ Izbriši iz arhiva</button>
+              <button onClick={async () => {
+                if (!confirm("Vrni v zamrzovalnik?")) return;
+                const { supabase: sb } = await import('@/lib/supabase');
+                await sb.from('items').insert([{
+                  name: editArchived.name, cat: editArchived.cat, qty: editArchived.qty,
+                  packets: editArchived.packets, label: editArchived.label,
+                  frozen: editArchived.frozen, expiry: editArchived.expiry,
+                  freezer: editArchived.freezer, sticky: false,
+                  household_id: householdId,
+                }]);
+                await sb.from('archived').delete().eq('id', editArchived.id);
+                setEditArchived(null);
+              }} style={{ width: "100%", padding: "13px", marginTop: 8, borderRadius: 14, border: "1px solid rgba(34,197,94,0.3)", background: "rgba(34,197,94,0.1)", color: "#22C55E", fontSize: 15, fontWeight: 600, cursor: "pointer" }}>↩ Vrni v zamrzovalnik</button>
             </div>
           </div>
         )}

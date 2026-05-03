@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useItems, useArchived, useFreezers, useCategories, useShoppingItems, useShoppingArchived, useShoppingFavourites, useShoppingStores } from '@/lib/hooks';
+import { useItems, useArchived, useFreezers, useCategories, useShoppingItems, useShoppingArchived, useShoppingFavourites, useShoppingStores, normalizujNiz } from '@/lib/hooks';
 
 // ─── CATEGORIES ───
 const CATS = {
@@ -280,7 +280,7 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
     if (filterCat && i.cat !== filterCat) return false;
     if (filterStatus === "expired" && getSt(i) !== "expired") return false;
     if (filterStatus === "warning" && getSt(i) !== "warning") return false;
-    if (search && !i.name.toLowerCase().includes(search.toLowerCase()) && !(i.label && i.label.toLowerCase().includes(search.toLowerCase()))) return false;
+    if (search && !normalizujNiz(i.name).includes(normalizujNiz(search)) && !(i.label && normalizujNiz(i.label).includes(normalizujNiz(search)))) return false;
     return true;
   }).sort((a, b) => { if (a.sticky && !b.sticky) return -1; if (!a.sticky && b.sticky) return 1; return new Date(a.expiry) - new Date(b.expiry); });
 

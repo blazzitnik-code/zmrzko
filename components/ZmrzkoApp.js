@@ -896,7 +896,7 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
                         <span style={{ fontSize: 24, flexShrink: 0 }}>{cat.icon}</span>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                            <span style={{ fontSize: 14, fontWeight: 700, color: "#E2E8F0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.name}</span>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: "#E2E8F0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.packets > 1 && <span style={{ color: "#818CF8" }}>{item.packets}x </span>}{item.name}</span>
                             {item.sticky && <span style={{ fontSize: 10 }}>📌</span>}
                           </div>
                           <div style={{ fontSize: 11, color: "#64748B", display: "flex", gap: 3, flexWrap: "wrap", alignItems: "center" }}>

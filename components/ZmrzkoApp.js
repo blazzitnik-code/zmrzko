@@ -258,7 +258,7 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
   // ─── FREEZER UI STATE ───
   const [screen, setScreen] = useState("home");
   const [search, setSearch] = useState("");
-  const [filterCat, setFilterCat] = useState(null);
+  const [filterCat, setFilterCat] = useState([]);
   const [filterStatus, setFilterStatus] = useState(null);
   const [showCatFilter, setShowCatFilter] = useState(false);
   const [selFrzs, setSelFrzs] = useState([]);
@@ -269,7 +269,7 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
   const [archView, setArchView] = useState("monthly");
   const [archSearch, setArchSearch] = useState("");
   const [editArchived, setEditArchived] = useState(null);
-  const [archCatF, setArchCatF] = useState(null);
+  const [archCatF, setArchCatF] = useState([]);
   const [addStep, setAddStep] = useState(0);
   const [addData, setAddData] = useState({ name: "", cat: "", qty: "", packets: 1, label: "", frozen: new Date().toISOString().split("T")[0], expiry: "", freezer: "home" });
   const [suggestions, setSuggestions] = useState([]);
@@ -303,7 +303,7 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
   const expC = vis.filter(i => getSt(i) === "expired").length;
   const warnC = vis.filter(i => getSt(i) === "warning").length;
   const filtered = vis.filter(i => {
-    if (filterCat && i.cat !== filterCat) return false;
+    if (filterCat.length > 0 && !filterCat.includes(i.cat)) return false;
     if (filterStatus === "expired" && getSt(i) !== "expired") return false;
     if (filterStatus === "warning" && getSt(i) !== "warning") return false;
     if (search && !normalizujNiz(i.name).includes(normalizujNiz(search)) && !(i.label && normalizujNiz(i.label).includes(normalizujNiz(search)))) return false;
@@ -714,7 +714,7 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
   if (showArchive) {
     const fa = archived.filter(a => {
       if (archSearch && !a.name.toLowerCase().includes(archSearch.toLowerCase()) && !(a.label && a.label.toLowerCase().includes(archSearch.toLowerCase()))) return false;
-      if (archCatF && a.cat !== archCatF) return false;
+      if (archCatF.length > 0 && !archCatF.includes(a.cat)) return false;
       return true;
     });
     const byMonth = {};
@@ -787,10 +787,10 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
 
           {/* Category filter pills */}
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-            <Pill small active={!archCatF} onClick={() => setArchCatF(null)}>Vse</Pill>
+            <Pill small active={archCatF.length === 0} onClick={() => setArchCatF([])}>Vse</Pill>
             {Object.entries(categories).map(([k, v]) => {
               const cnt = archived.filter(a => a.cat === k).length;
-              return cnt ? <Pill key={k} small active={archCatF === k} color={v.color} onClick={() => setArchCatF(archCatF === k ? null : k)}>{v.icon} {cnt}</Pill> : null;
+              return cnt ? <Pill key={k} small active={archCatF.includes(k)} color={v.color} onClick={() => setArchCatF(prev => prev.includes(k) ? prev.filter(c => c !== k) : [...prev, k])}>{v.icon} {cnt}</Pill> : null;
             })}
           </div>
 
@@ -917,16 +917,16 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
             <LogoToggle />
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <FreezerDD freezers={freezers} selected={selFrzs} onChange={setSelFrzs} onAdd={dbAddFreezer} />
-              <button onClick={() => { setShowArchive(true); setArchSearch(""); setArchCatF(null); }} style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(71,85,105,0.2)", borderRadius: 10, padding: "8px 10px", color: "#64748B", fontSize: 14, cursor: "pointer", fontWeight: 600, lineHeight: 1 }}>📦</button>
+              <button onClick={() => { setShowArchive(true); setArchSearch(""); setArchCatF([]); }} style={{ background: "rgba(30,41,59,0.6)", border: "1px solid rgba(71,85,105,0.2)", borderRadius: 10, padding: "8px 10px", color: "#64748B", fontSize: 14, cursor: "pointer", fontWeight: 600, lineHeight: 1 }}>📦</button>
               <SettingsBtn />
             </div>
           </div>
 
           {(expC > 0 || warnC > 0) && <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>{expC > 0 && <button onClick={() => setFilterStatus(filterStatus === "expired" ? null : "expired")} style={{ background: filterStatus === "expired" ? "rgba(239,68,68,0.25)" : "rgba(239,68,68,0.12)", color: "#EF4444", fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 20, border: "1px solid " + (filterStatus === "expired" ? "rgba(239,68,68,0.6)" : "rgba(239,68,68,0.25)"), cursor: "pointer" }}>🔴 {expC} poteklo</button>}{warnC > 0 && <button onClick={() => setFilterStatus(filterStatus === "warning" ? null : "warning")} style={{ background: filterStatus === "warning" ? "rgba(245,158,11,0.2)" : "rgba(245,158,11,0.1)", color: "#F59E0B", fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 20, border: "1px solid " + (filterStatus === "warning" ? "rgba(245,158,11,0.5)" : "rgba(245,158,11,0.2)"), cursor: "pointer" }}>🟠 {warnC} kmalu</button>}{filterStatus && <button onClick={() => setFilterStatus(null)} style={{ background: "transparent", border: "1px solid rgba(71,85,105,0.3)", borderRadius: 20, padding: "6px 12px", color: "#64748B", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✕</button>}</div>}
 
-          <div style={{ display: "flex", gap: 8, marginBottom: showCatFilter ? 8 : 12 }}><div style={{ position: "relative", flex: 1 }}><span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, color: "#475569" }}>🔍</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Išči..." style={{ ...INP, paddingLeft: 38, border: "1px solid rgba(71,85,105,0.3)", fontSize: 14 }} /></div><button onClick={() => setShowCatFilter(!showCatFilter)} style={{ width: 46, height: 46, borderRadius: 14, flexShrink: 0, border: "1px solid " + (showCatFilter || filterCat ? "rgba(99,102,241,0.5)" : "rgba(71,85,105,0.3)"), background: showCatFilter || filterCat ? "rgba(99,102,241,0.12)" : "rgba(30,41,59,0.6)", color: showCatFilter || filterCat ? "#818CF8" : "#64748B", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>☰{filterCat && <span style={{ position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: "50%", background: "#818CF8" }} />}</button></div>
+          <div style={{ display: "flex", gap: 8, marginBottom: showCatFilter ? 8 : 12 }}><div style={{ position: "relative", flex: 1 }}><span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 14, color: "#475569" }}>🔍</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Išči..." style={{ ...INP, paddingLeft: 38, paddingRight: search ? 38 : 16, border: "1px solid rgba(71,85,105,0.3)", fontSize: 14 }} />{search && <button onClick={() => setSearch("")} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#64748B", fontSize: 16, cursor: "pointer", lineHeight: 1 }}>✕</button>}</div><button onClick={() => setShowCatFilter(!showCatFilter)} style={{ width: 46, height: 46, borderRadius: 14, flexShrink: 0, border: "1px solid " + (showCatFilter || filterCat.length > 0 ? "rgba(99,102,241,0.5)" : "rgba(71,85,105,0.3)"), background: showCatFilter || filterCat.length > 0 ? "rgba(99,102,241,0.12)" : "rgba(30,41,59,0.6)", color: showCatFilter || filterCat.length > 0 ? "#818CF8" : "#64748B", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>☰{filterCat.length > 0 && <span style={{ position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: "50%", background: "#818CF8" }} />}</button></div>
 
-          {showCatFilter && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12, padding: "10px 12px", background: "rgba(30,41,59,0.4)", borderRadius: 14, border: "1px solid rgba(71,85,105,0.15)" }}><Pill small active={!filterCat} onClick={() => setFilterCat(null)}>Vse</Pill>{Object.entries(categories).map(([k, v]) => { const cnt = vis.filter(i => i.cat === k).length; return cnt ? <Pill key={k} small active={filterCat === k} color={v.color} onClick={() => setFilterCat(filterCat === k ? null : k)}>{v.icon} {v.label} ({cnt})</Pill> : null; })}</div>}
+          {showCatFilter && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12, padding: "10px 12px", background: "rgba(30,41,59,0.4)", borderRadius: 14, border: "1px solid rgba(71,85,105,0.15)" }}><Pill small active={filterCat.length === 0} onClick={() => setFilterCat([])}>Vse</Pill>{Object.entries(categories).map(([k, v]) => { const cnt = vis.filter(i => i.cat === k).length; return cnt ? <Pill key={k} small active={filterCat.includes(k)} color={v.color} onClick={() => setFilterCat(prev => prev.includes(k) ? prev.filter(c => c !== k) : [...prev, k])}>{v.icon} {v.label} ({cnt})</Pill> : null; })}</div>}
 
           {/* Items with swipe */}
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>

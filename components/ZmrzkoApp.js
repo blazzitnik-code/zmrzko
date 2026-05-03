@@ -268,6 +268,7 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
   const [showArchive, setShowArchive] = useState(false);
   const [archView, setArchView] = useState("monthly");
   const [archSearch, setArchSearch] = useState("");
+  const [editArchived, setEditArchived] = useState(null);
   const [archCatF, setArchCatF] = useState(null);
   const [addStep, setAddStep] = useState(0);
   const [addData, setAddData] = useState({ name: "", cat: "", qty: "", packets: 1, label: "", frozen: new Date().toISOString().split("T")[0], expiry: "", freezer: "home" });
@@ -729,6 +730,39 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
 
     return (
       <div style={A}><div style={F1} /><div style={F2} />
+
+        {/* MODAL - EDIT ARHIVIRANEGA ITEMA */}
+        {editArchived && (
+          <div onClick={() => setEditArchived(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 200 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: "linear-gradient(180deg,#1E293B,#0F172A)", borderRadius: "24px 24px 0 0", width: "100%", maxWidth: 430, padding: "24px 20px 36px", border: "1px solid rgba(71,85,105,0.3)", borderBottom: "none" }}>
+              <div style={{ width: 36, height: 4, background: "#334155", borderRadius: 2, margin: "0 auto 20px" }} />
+              <h3 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 16px" }}>Uredi: {editArchived.name}</h3>
+              <div style={{ marginBottom: 12 }}>
+                <label style={LBL}>Ime</label>
+                <input value={editArchived.name} onChange={e => setEditArchived(p => ({ ...p, name: e.target.value }))} style={INP} />
+              </div>
+              <div style={{ marginBottom: 20 }}>
+                <label style={LBL}>Količina</label>
+                <input value={editArchived.qty} onChange={e => setEditArchived(p => ({ ...p, qty: e.target.value }))} style={INP} />
+              </div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                <button onClick={async () => {
+                  const { supabase: sb } = await import('@/lib/supabase');
+                  await sb.from('archived').update({ name: editArchived.name, qty: editArchived.qty }).eq('id', editArchived.id);
+                  setEditArchived(null);
+                }} style={{ flex: 1, padding: "13px", borderRadius: 14, border: "none", background: "linear-gradient(135deg,#0EA5E9,#6366F1)", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>💾 Shrani</button>
+                <button onClick={() => setEditArchived(null)} style={{ flex: 1, padding: "13px", borderRadius: 14, border: "1px solid rgba(71,85,105,0.3)", background: "transparent", color: "#64748B", fontSize: 15, fontWeight: 600, cursor: "pointer" }}>Prekliči</button>
+              </div>
+              <button onClick={async () => {
+                if (!confirm("Izbriši ta vnos iz arhiva?")) return;
+                const { supabase: sb } = await import('@/lib/supabase');
+                await sb.from('archived').delete().eq('id', editArchived.id);
+                setEditArchived(null);
+              }} style={{ width: "100%", padding: "13px", borderRadius: 14, border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.1)", color: "#EF4444", fontSize: 15, fontWeight: 600, cursor: "pointer" }}>🗑️ Izbriši iz arhiva</button>
+            </div>
+          </div>
+        )}
+
         <div style={{ position: "relative", zIndex: 1, padding: "16px 16px 40px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 12, marginBottom: 16 }}>
             <button onClick={() => setShowArchive(false)} style={{ background: "rgba(30,41,59,0.8)", border: "1px solid rgba(71,85,105,0.3)", borderRadius: 12, padding: "10px 16px", color: "#94A3B8", fontSize: 14, cursor: "pointer", fontWeight: 600 }}>← Nazaj</button>
@@ -776,7 +810,7 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
               {mi.map((it, i) => {
                 const cat = categories[it.cat] || CATS.drugo;
                 return (
-                  <div key={it.id + "-" + i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: it.wasted ? "rgba(239,68,68,0.06)" : "rgba(30,41,59,0.4)", borderRadius: 12, marginBottom: 3, border: "1px solid " + (it.wasted ? "rgba(239,68,68,0.15)" : "rgba(71,85,105,0.12)") }}>
+                  <div key={it.id + "-" + i} onClick={() => setEditArchived(it)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: it.wasted ? "rgba(239,68,68,0.06)" : "rgba(30,41,59,0.4)", borderRadius: 12, marginBottom: 3, border: "1px solid " + (it.wasted ? "rgba(239,68,68,0.15)" : "rgba(71,85,105,0.12)"), cursor: "pointer" }}>
                     <span style={{ fontSize: 18 }}>{cat.icon}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: it.wasted ? "#EF4444" : "#CBD5E1" }}>{it.name} {it.wasted && <span style={{ fontSize: 11, opacity: 0.7 }}>· zavrženo</span>}</div>
@@ -802,7 +836,7 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
                   <div style={{ height: "100%", borderRadius: 3, background: cat.color, width: Math.min(100, (ci.length / tot) * 300) + "%", opacity: 0.7 }} />
                 </div>
                 {ci.slice(0, 5).map((it, i) => (
-                  <div key={it.id + "-" + i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 12px", background: it.wasted ? "rgba(239,68,68,0.06)" : "rgba(30,41,59,0.3)", borderRadius: 10, marginBottom: 3 }}>
+                  <div key={it.id + "-" + i} onClick={() => setEditArchived(it)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 12px", background: it.wasted ? "rgba(239,68,68,0.06)" : "rgba(30,41,59,0.3)", borderRadius: 10, marginBottom: 3, cursor: "pointer" }}>
                     <div style={{ flex: 1, fontSize: 13, color: it.wasted ? "#EF4444" : "#CBD5E1", fontWeight: 500 }}>{it.name}{it.wasted ? " · zavrženo" : ""}</div>
                     <div style={{ fontSize: 11, color: "#475569" }}>{it.qty}</div>
                     <div style={{ fontSize: 11, color: "#475569" }}>{fmtD(it.archived_at)}</div>

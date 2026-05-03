@@ -294,6 +294,11 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
   const [showNewStore, setShowNewStore] = useState(false);
   const [newStore, setNewStore] = useState({ name: "", icon: "🔵" });
   const shopInputRef = useRef(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editingName, setEditingName] = useState("");
+  const dragItem = useRef(null);
+  const dragOver = useRef(null);
+  const touchDrag = useRef({ item: null, startY: 0 });
 
   // All known shopping names for autocomplete
   const shopKnown = useMemo(() => {
@@ -569,11 +574,6 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
     }
 
     // Render a single shop item row
-    const [editingId, setEditingId] = useState(null);
-    const [editingName, setEditingName] = useState("");
-    const dragItem = useRef(null);
-    const dragOver = useRef(null);
-
     const handleDragStart = (e, item) => {
       dragItem.current = item;
       e.dataTransfer.effectAllowed = "move";
@@ -594,8 +594,6 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
       dragOver.current = null;
     };
 
-    // Touch drag & drop za mobilne
-    const touchDrag = useRef({ item: null, startY: 0, clone: null });
     const handleTouchStart = (e, item) => {
       touchDrag.current.item = item;
       touchDrag.current.startY = e.touches[0].clientY;

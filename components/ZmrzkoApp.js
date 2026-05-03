@@ -360,7 +360,6 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
 
   // Grupiraj po kategorijah za single-store view
   const shopByCategory = useMemo(() => {
-    if (activeStore === "all") return null;
     const unchecked = sortedShop.filter(i => !i.checked);
     const checked = sortedShop.filter(i => i.checked);
     const groups = {};
@@ -370,7 +369,7 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
       groups[cat.key].items.push(item);
     });
     return { groups: Object.values(groups).sort((a, b) => a.order - b.order), checked };
-  }, [sortedShop, activeStore]);
+  }, [sortedShop]);
 
   // Group by store for "all" view
   const shopByStore = useMemo(() => {
@@ -392,7 +391,8 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
     const targetStore = activeStore === "all" ? lastStore : activeStore;
     const existing = shopItems.find(i => i.name.toLowerCase() === name.toLowerCase() && !i.checked && i.store === targetStore);
     if (existing) return;
-    await dbShopAdd({ name: name.trim(), qty: "", checked: false, store: targetStore, favourite: false, category: "", sort_order: 0 });
+    const maxOrder = shopItems.length > 0 ? Math.max(...shopItems.map(i => i.sort_order ?? 0)) : 0;
+    await dbShopAdd({ name: name.trim(), qty: "", checked: false, store: targetStore, favourite: false, category: "", sort_order: maxOrder + 1 });
     setShopInput("");
     setShopSugg([]);
   }
@@ -614,14 +614,23 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
       touchDrag.current.item = null;
     };
 
-    const ShopItemRow = ({ item }) => {
+    const ShopItemRow = ({ item, allItems }) => {
       const st = shopStores.find(s => s.id === item.store);
       return (
-        <div onClick={() => setShopDetail(item)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: item.checked ? "rgba(30,41,59,0.2)" : "rgba(30,41,59,0.5)", border: "1px solid " + (item.checked ? "rgba(71,85,105,0.08)" : "rgba(71,85,105,0.2)"), borderRadius: 14, opacity: item.checked ? 0.5 : 1, transition: "all 0.2s", cursor: "pointer" }}>
+        <div
+          draggable={!item.checked}
+          onDragStart={e => handleDragStart(e, item)}
+          onDragOver={e => handleDragOver(e, item)}
+          onDrop={handleDrop}
+          onTouchStart={e => handleTouchStart(e, item)}
+          onTouchEnd={e => handleTouchEnd(e, allItems || sortedShop)}
+          style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: item.checked ? "rgba(30,41,59,0.2)" : "rgba(30,41,59,0.5)", border: "1px solid " + (item.checked ? "rgba(71,85,105,0.08)" : "rgba(71,85,105,0.2)"), borderRadius: 14, opacity: item.checked ? 0.5 : 1, transition: "all 0.2s", touchAction: "pan-y" }}
+        >
+          {!item.checked && <span style={{ fontSize: 14, color: "#334155", cursor: "grab", flexShrink: 0, userSelect: "none" }}>⠿</span>}
           <button onClick={(e) => { e.stopPropagation(); shopToggle(item.id); }} style={{ width: 28, height: 28, borderRadius: 8, border: "2px solid " + (item.checked ? "#22C55E" : "rgba(71,85,105,0.4)"), background: item.checked ? "#22C55E" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, fontSize: 14, color: "#fff", transition: "all 0.15s" }}>
             {item.checked && "✓"}
           </button>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div onClick={() => setShopDetail(item)} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
             <span style={{ fontSize: 16, fontWeight: 600, color: item.checked ? "#475569" : "#E2E8F0", textDecoration: item.checked ? "line-through" : "none" }}>{item.name}</span>
             {item.qty && <span style={{ fontSize: 13, color: item.checked ? "#374151" : "#64748B", marginLeft: 8 }}>{item.qty}</span>}
           </div>
@@ -697,46 +706,25 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
             )}
           </div>
 
-          {/* Items - grouped by store when "all", by category when single store */}
-          {activeStore === "all" && shopByStore ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {Object.entries(shopByStore).map(([storeId, { store, items: storeItems }]) => (
-                <div key={storeId}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, paddingLeft: 4 }}>
-                    <span style={{ fontSize: 16 }}>{store.icon}</span>
-                    <span style={{ fontSize: 15, fontWeight: 800, color: "#CBD5E1", textTransform: "uppercase", letterSpacing: 1 }}>{store.name}</span>
-                    <span style={{ fontSize: 12, color: "#475569" }}>({storeItems.filter(i => !i.checked).length})</span>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {storeItems.map(item => <ShopItemRow key={item.id} item={item} />)}
-                  </div>
+          {/* Items - vedno grupirano po kategorijah */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {shopByCategory.groups.map(group => (
+              <div key={group.label}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 6, paddingLeft: 2, textTransform: "uppercase", letterSpacing: 1 }}>{group.label}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {group.items.map(item => <ShopItemRow key={item.id} item={item} allItems={group.items} />)}
                 </div>
-              ))}
-            </div>
-          ) : shopByCategory ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {shopByCategory.groups.map(group => (
-                <div key={group.label}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#64748B", marginBottom: 6, paddingLeft: 2 }}>{group.label}</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {group.items.map(item => <ShopItemRow key={item.id} item={item} />)}
-                  </div>
+              </div>
+            ))}
+            {shopByCategory.checked.length > 0 && (
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 6, paddingLeft: 2, textTransform: "uppercase", letterSpacing: 1 }}>✓ Kupljeno</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {shopByCategory.checked.map(item => <ShopItemRow key={item.id} item={item} allItems={shopByCategory.checked} />)}
                 </div>
-              ))}
-              {shopByCategory.checked.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 6, paddingLeft: 2 }}>✓ Kupljeno</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {shopByCategory.checked.map(item => <ShopItemRow key={item.id} item={item} />)}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {sortedShop.map(item => <ShopItemRow key={item.id} item={item} />)}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
 
           {shopItems.length === 0 && <div style={{ textAlign: "center", padding: "48px 0", color: "#475569" }}><div style={{ fontSize: 48, marginBottom: 12 }}>🛒</div><p>Seznam je prazen — dodaj prvi izdelek!</p></div>}
         </div>
@@ -746,7 +734,6 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
           <Modal onClose={() => { setShopDetail(null); setEditingId(null); }}>
             <div style={{ textAlign: "center", marginBottom: 20 }}>
               <div style={{ fontSize: 48, marginBottom: 8 }}>🛒</div>
-              {/* Ime - klikabilno za urejanje */}
               {editingId === shopDetail.id ? (
                 <input
                   autoFocus
@@ -772,11 +759,7 @@ export default function ZmrzkoApp({ user, household, members, signOut }) {
                   style={{ fontSize: 22, fontWeight: 800, color: "#E2E8F0", background: "transparent", border: "none", borderBottom: "2px solid #F59E0B", outline: "none", textAlign: "center", width: "100%", padding: "4px 0" }}
                 />
               ) : (
-                <h2
-                  onClick={() => { setEditingId(shopDetail.id); setEditingName(shopDetail.name); }}
-                  style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", cursor: "pointer" }}
-                  title="Klikni za urejanje"
-                >
+                <h2 onClick={() => { setEditingId(shopDetail.id); setEditingName(shopDetail.name); }} style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", cursor: "pointer" }}>
                   {shopDetail.name} <span style={{ fontSize: 14, color: "#475569" }}>✎</span>
                 </h2>
               )}

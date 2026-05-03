@@ -11,6 +11,7 @@ export const metadata = {
     maximumScale: 1,
     userScalable: false,
     viewportFit: 'cover',
+    interactiveWidget: 'resizes-visual',
   },
   appleWebApp: {
     capable: true,
